@@ -15,7 +15,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { sendMessage, onMessage } from 'webext-bridge';
+import { sendMessage, onMessage } from 'webext-bridge/background';
 import browser from 'webextension-polyfill';
 import { getCurrentTabId } from '../util';
 import { AwsOptions, ExtensionOptions, LOCKR_PREFIX } from '~/constants';

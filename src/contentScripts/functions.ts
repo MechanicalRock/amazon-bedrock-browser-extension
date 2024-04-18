@@ -174,17 +174,20 @@ function promiseWithRetry<T>(
   cb: () => Promise<T>,
   attempts = 0
 ) {
-  setTimeout(() => {
-    cb()
-      .then(res => resolve(res))
-      .catch(e => {
-        if (attempts < 4) {
-          void promiseWithRetry<T>(resolve, reject, cb, attempts + 1);
-        } else {
-          reject(e);
-        }
-      });
-  }, Math.pow(10, attempts));
+  setTimeout(
+    () => {
+      cb()
+        .then(res => resolve(res))
+        .catch(e => {
+          if (attempts < 4) {
+            void promiseWithRetry<T>(resolve, reject, cb, attempts + 1);
+          } else {
+            reject(e);
+          }
+        });
+    },
+    Math.pow(10, attempts)
+  );
 }
 
 /**

@@ -4,7 +4,8 @@
 -->
 <script lang="ts">
   import { TranslateClientConfig } from '@aws-sdk/client-translate';
-  import { onMessage, sendMessage } from 'webext-bridge';
+  import { sendMessage, onMessage } from 'webext-bridge/content-script';
+  import { JsonObject } from 'aws-sdk';
   import { lockr } from '../modules';
   import { getCurrentTabId } from '../util';
   import { AwsOptions, ExtensionOptions, languages } from '~/constants';
@@ -88,7 +89,8 @@
           
           this.prevtargetLang = this.form.targetLang;
                    
-          sendMessage('translate', message, {
+            
+            sendMessage('translate', message as JsonObject, {
             context: 'content-script',
             tabId,
           });
@@ -110,7 +112,7 @@
       async clearPageCache() {
         const tabId = await getCurrentTabId();
         sendMessage(
-          'clearCache',
+          'clearCache', 
           { tabId },
           {
             context: 'content-script',

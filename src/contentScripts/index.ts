@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { onMessage, sendMessage } from 'webext-bridge';
+import { onMessage, sendMessage } from 'webext-bridge/content-script';
 import { lockr } from '../modules';
 import { TranslateCommandData } from '../_contracts';
 import { createOverlay, destroyOverlay } from './functions';
@@ -36,7 +36,7 @@ import { startTranslation } from './translate';
  * Show the "translating..." overlay
  */
 function showOverlayHandler() {
-  onMessage<TranslateCommandData, 'show-overlay'>('show-overlay', () => {
+  onMessage<any, 'show-overlay'>('show-overlay', () => {
     createOverlay();
   });
 }
@@ -89,7 +89,7 @@ function translateHandler() {
  * Show the result of "translate selections in popup" message from background script
  */
 function translateSelectionHandler() {
-  onMessage<TranslateCommandData, 'translate-selection'>('translate-selection', ({ data }) => {
+  onMessage<any, 'translate-selection'>('translate-selection', ({ data }) => {
     const { translatedText } = data;
     const body = document.querySelector('body');
 

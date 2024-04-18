@@ -1,5 +1,5 @@
 import { dirname, relative } from 'path';
-import { defineConfig, UserConfig } from 'vite';
+import { defineConfig } from 'vite';
 import Vue from '@vitejs/plugin-vue';
 import Icons from 'unplugin-icons/vite';
 import IconsResolver from 'unplugin-icons/resolver';
@@ -10,7 +10,7 @@ import windiConfig from './windi.config';
 import svgLoader from 'vite-svg-loader';
 import { r, port, isDev } from './scripts/utils';
 
-export const sharedConfig: UserConfig = {
+const sharedConfig = {
   root: r('src'),
   resolve: {
     alias: {
@@ -96,7 +96,7 @@ export default defineConfig(({ command }) => ({
     },
   },
   plugins: [
-    ...sharedConfig.plugins!,
+    ...sharedConfig.plugins,
 
     // https://github.com/antfu/vite-plugin-windicss
     WindiCSS({
