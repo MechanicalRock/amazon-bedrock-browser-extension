@@ -24,6 +24,7 @@ import { startTranslation } from './translate';
 
 // Firefox `browser.tabs.executeScript()` requires scripts return a primitive value
 (() => {
+  console.log('Content script loaded.');
   // Setup message handlers. These handlers receive messages from the popup window.
   translateHandler();
   showOverlayHandler();
@@ -75,7 +76,7 @@ function translateHandler() {
           void sendMessage(
             'status',
             { status: 'error', message: 'An error occurred. The document failed to translate.' },
-            { context, tabId }
+            context + '@' + tabId
           );
         })
         .finally(() => {
@@ -156,12 +157,17 @@ function translateSelectionHandler() {
  */
 function clearCacheHandler() {
   // Listen to requests to clear the current page's translation cache
-  onMessage('clearCache', ({ sender: { context, tabId } }) => {
+  onMessage('clearCache', message => {
+    const {
+      sender,
+      data: { tabId },
+    } = message;
+    console.info(`A message to clear cache for tab ${tabId} received`);
     lockr.rm(window.location.href);
     void sendMessage(
       'status',
       { status: 'complete', message: 'Cleared cache for this page.' },
-      { context, tabId }
+      sender.context + '@' + tabId
     );
   });
 }

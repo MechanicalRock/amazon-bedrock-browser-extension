@@ -4,8 +4,7 @@
 -->
 <script lang="ts">
   import { TranslateClientConfig } from '@aws-sdk/client-translate';
-  import { sendMessage, onMessage } from 'webext-bridge/content-script';
-  import { JsonObject } from 'aws-sdk';
+  import { sendMessage, onMessage } from 'webext-bridge/popup';
   import { lockr } from '../modules';
   import { getCurrentTabId } from '../util';
   import { AwsOptions, ExtensionOptions, languages } from '~/constants';
@@ -40,6 +39,7 @@
       onMessage('status', async ({ data: _data }) => {
         const data = _data as unknown;
         const { status, message } = data as TranslateStatusData;
+        window.console.log('status message received in popup: ' + message)
         this.status = status;
         this.message = message;
       });
@@ -90,10 +90,9 @@
           this.prevtargetLang = this.form.targetLang;
                    
             
-            sendMessage('translate', message as JsonObject, {
-            context: 'content-script',
-            tabId,
-          });
+            sendMessage('translate', message as JsonObject,
+            'content-script@'+tabId
+          );
         } catch (err) {
           this.status = 'error';
           this.message =
@@ -111,14 +110,21 @@
        */
       async clearPageCache() {
         const tabId = await getCurrentTabId();
+        window.console.log('clear page cache button clicked')
+        sendMessage(
+          'status',
+          { status: 'error', message: 'Testing.' },
+          'popup'
+        );
+        window.console.log('a message sent to popup for testing')
+        const currentTabId = await getCurrentTabId();
+        
         sendMessage(
           'clearCache', 
-          { tabId },
-          {
-            context: 'content-script',
-            tabId,
-          }
+           { tabId: currentTabId },
+          `content-script@${currentTabId}`
         );
+        window.console.log('a message sent to content script for clearing cache')
       },
     },
   });
@@ -174,7 +180,7 @@
     </form>
 
     <div class="links">
-      <a @click="openOptionsPage" href="#">Extension Settings</a>
+      <a @click="openOptionsPage" href="#">Extension Settings</a><br>
       <template v-if="cachingEnabled">
         <a @click="clearPageCache" href="#">Clear Cache for this Page</a>
       </template>

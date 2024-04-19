@@ -81,10 +81,7 @@ browser.commands.onCommand.addListener(command => {
         cachingEnabled: (await local.get(ExtensionOptions.CACHING_ENABLED, 'false')) === 'true',
       };
 
-      void sendMessage('translate', message, {
-        context: 'content-script',
-        tabId,
-      });
+      void sendMessage('translate', message, 'content-script@' + tabId);
     }
   })();
 });
@@ -102,6 +99,7 @@ browser.commands.onCommand.addListener(command => {
 // communication example: send previous tab title from background page
 // see shim.d.ts for type declaration
 browser.tabs.onActivated.addListener(({ tabId }) => {
+  console.debug('tab activated', tabId, previousTabId);
   if (!previousTabId) {
     previousTabId = tabId;
     return;
@@ -111,7 +109,7 @@ browser.tabs.onActivated.addListener(({ tabId }) => {
     .then(tab => {
       previousTabId = tabId;
       console.info('previous tab', tab);
-      void sendMessage('tab-prev', { title: tab.title }, { context: 'content-script', tabId });
+      void sendMessage('tab-prev', { title: tab.title }, 'content-script@' + tabId);
     })
     .catch(() => {
       return;
@@ -147,14 +145,7 @@ browser.contextMenus.onClicked.addListener((info): void => {
   void (async () => {
     if (info.menuItemId === 'translate-selection') {
       const tabId = await getCurrentTabId();
-      void sendMessage(
-        'show-overlay',
-        {},
-        {
-          context: 'content-script',
-          tabId,
-        }
-      );
+      void sendMessage('show-overlay', {}, 'content-script@' + tabId);
       const translatedDocs = await translateMany(
         {
           region: await local.get(AwsOptions.AWS_REGION, ''),
@@ -171,10 +162,7 @@ browser.contextMenus.onClicked.addListener((info): void => {
       void sendMessage(
         'translate-selection',
         { translatedText: escape(translatedDocs.translatedText[0]) },
-        {
-          context: 'content-script',
-          tabId,
-        }
+        'content-script@' + tabId
       );
     }
   })();

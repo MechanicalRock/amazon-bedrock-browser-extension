@@ -1,97 +1,39 @@
-import { dirname, relative } from 'path';
 import { defineConfig } from 'vite';
-import Vue from '@vitejs/plugin-vue';
-import Icons from 'unplugin-icons/vite';
-import IconsResolver from 'unplugin-icons/resolver';
-import Components from 'unplugin-vue-components/vite';
-import AutoImport from 'unplugin-auto-import/vite';
 import WindiCSS from 'vite-plugin-windicss';
-import svgLoader from 'vite-svg-loader';
-import { r, port, isDev } from './scripts/utils';
+import { sharedConfig } from './vite.config';
+import { r, isDev } from './scripts/utils';
 import windiConfig from './windi.config';
+import packageJson from './package.json';
 
-const sharedConfig = {
-  root: r('src'),
-  resolve: {
-    alias: {
-      '~/': `${r('src')}/`,
-    },
-  },
-  define: {
-    __DEV__: isDev,
-  },
-  plugins: [
-    Vue(),
-
-    svgLoader(),
-
-    AutoImport({
-      imports: [
-        'vue',
-        {
-          'webextension-polyfill': [['default', 'browser']],
-        },
-      ],
-      dts: r('src/auto-imports.d.ts'),
-    }),
-
-    Components({
-      dirs: [r('src/components')],
-      dts: true,
-      resolvers: [
-        IconsResolver({
-          componentPrefix: '',
-        }),
-      ],
-    }),
-
-    Icons(),
-
-    {
-      name: 'assets-rewrite',
-      enforce: 'post',
-      apply: 'build',
-      transformIndexHtml(html: string, { path }: { path: string }) {
-        return html.replace(/"\/assets\//g, `"${relative(dirname(path), '/assets')}/`);
-      },
-    },
-  ],
-  optimizeDeps: {
-    include: ['vue', '@vueuse/core'],
-    exclude: ['vue-demi'],
-  },
-};
-
-export default defineConfig(({ command }) => ({
+// bundling the content script using Vite
+export default defineConfig({
   ...sharedConfig,
-  base: command === 'serve' ? `http://localhost:${port}/` : '/dist/',
-  server: {
-    port,
-    hmr: {
-      host: 'localhost',
-    },
-  },
   build: {
-    outDir: r('extension/dist'),
+    watch: isDev
+      ? {
+          include: [r('src/contentScripts/**/*'), r('src/components/**/*')],
+        }
+      : undefined,
+    outDir: r('extension/dist/contentScripts'),
+    cssCodeSplit: false,
     emptyOutDir: false,
     sourcemap: isDev ? 'inline' : false,
-    terserOptions: {
-      mangle: false,
+    lib: {
+      entry: r('src/contentScripts/index.ts'),
+      name: packageJson.name,
+      formats: ['iife'],
     },
     rollupOptions: {
-      input: {
-        background: r('src/background/main.ts'),
-        options: r('src/options/index.html'),
-        popup: r('src/popup/index.html'),
-      },
       output: {
-        entryFileNames: '[name]/[name].js',
+        entryFileNames: 'index.global.js',
+        extend: true,
       },
     },
   },
   plugins: [
-    ...sharedConfig.plugins,
+    ...sharedConfig.plugins!,
 
+    // https://github.com/antfu/vite-plugin-windicss
     WindiCSS({
       config: {
         ...windiConfig,
@@ -100,4 +42,4 @@ export default defineConfig(({ command }) => ({
       },
     }),
   ],
-}));
+});
