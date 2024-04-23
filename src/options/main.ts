@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { createApp } from 'vue';
+import { createApp, Component } from 'vue';
 import App from './Options.vue';
 import '../styles';
 
-const app = createApp(App);
+const app = createApp(App as Component);
 app.mount('#app');

@@ -16,7 +16,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { onMessage, sendMessage } from 'webext-bridge';
+import { onMessage, sendMessage } from 'webext-bridge/content-script';
 import { lockr } from '../modules';
 import { TranslateCommandData } from '../_contracts';
 import { createOverlay, destroyOverlay } from './functions';
@@ -24,6 +24,7 @@ import { startTranslation } from './translate';
 
 // Firefox `browser.tabs.executeScript()` requires scripts return a primitive value
 (() => {
+  console.log('Content script loaded.');
   // Setup message handlers. These handlers receive messages from the popup window.
   translateHandler();
   showOverlayHandler();
@@ -36,7 +37,7 @@ import { startTranslation } from './translate';
  * Show the "translating..." overlay
  */
 function showOverlayHandler() {
-  onMessage<TranslateCommandData, 'show-overlay'>('show-overlay', () => {
+  onMessage<any, 'show-overlay'>('show-overlay', () => {
     createOverlay();
   });
 }
@@ -75,7 +76,7 @@ function translateHandler() {
           void sendMessage(
             'status',
             { status: 'error', message: 'An error occurred. The document failed to translate.' },
-            { context, tabId }
+            context + '@' + tabId
           );
         })
         .finally(() => {
@@ -89,7 +90,7 @@ function translateHandler() {
  * Show the result of "translate selections in popup" message from background script
  */
 function translateSelectionHandler() {
-  onMessage<TranslateCommandData, 'translate-selection'>('translate-selection', ({ data }) => {
+  onMessage<any, 'translate-selection'>('translate-selection', ({ data }) => {
     const { translatedText } = data;
     const body = document.querySelector('body');
 
@@ -156,12 +157,17 @@ function translateSelectionHandler() {
  */
 function clearCacheHandler() {
   // Listen to requests to clear the current page's translation cache
-  onMessage('clearCache', ({ sender: { context, tabId } }) => {
+  onMessage('clearCache', message => {
+    const {
+      sender,
+      data: { tabId },
+    } = message;
+    console.info(`A message to clear cache for tab ${tabId} received`);
     lockr.rm(window.location.href);
     void sendMessage(
       'status',
       { status: 'complete', message: 'Cleared cache for this page.' },
-      { context, tabId }
+      sender.context + '@' + tabId
     );
   });
 }
