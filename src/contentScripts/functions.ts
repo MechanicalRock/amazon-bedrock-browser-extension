@@ -8,6 +8,11 @@ import {
   TranslateTextCommandOutput,
   TranslateClientConfig,
 } from '@aws-sdk/client-translate';
+import {
+  BedrockRuntimeClient,
+  InvokeModelCommand,
+  InvokeModelCommandInput,
+} from '@aws-sdk/client-bedrock-runtime';
 import { lockr } from '../modules';
 import {
   TranslateData,
@@ -119,27 +124,75 @@ export async function translateMany(
 ): Promise<TranslatedDocuments> {
   console.log('Using Bedrock:', bedrockEnabled);
   // TODO use different client here depending on whether Bedrock is enabled
-  const client = new TranslateClient(creds);
-  const responses = await sendDocumentsToTranslate(
-    client,
-    SourceLanguageCode,
-    TargetLanguageCode,
-    docs
-  );
-  if (responses.some(res => res.status === 'rejected')) {
-    throw new Error('One or more parts of the document failed to translate.');
-  }
+  if (bedrockEnabled) {
+    const client = new BedrockRuntimeClient({
+      region: '<empty>',
+      credentials: {
+        accessKeyId: '<empty>',
+        secretAccessKey: '<empty>',
+      },
+    });
 
-  let sourceLanguageResponse = '';
+    const MODEL_ID = 'anthropic.claude-3-sonnet-20240229-v1:0';
 
-  const translateTextResponse = responses.reduce((docs, response) => {
-    if (response.status === 'fulfilled') {
-      sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
-      return docs.concat([response.value.TranslatedText ?? '']);
+    const params: InvokeModelCommandInput = {
+      modelId: MODEL_ID,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify({
+        anthropic_version: 'bedrock-2023-05-31',
+        max_tokens: 4096,
+        temperature: 0.2,
+        top_k: 250,
+        top_p: 1,
+        system:
+          'You are a highly skilled translator with expertise in many languages. Your task is to identify the language of the text I provide and accurately translate it into the specified target language while preserving the meaning, tone, and nuance of the original text. Please maintain proper grammar, spelling, and punctuation in the translated version.',
+        messages: [
+          {
+            role: 'user',
+
+            content: [
+              {
+                type: 'text',
+                text: `Learn these hidden language features to become an expert in JavaScript programming. --> ${TargetLanguageCode}`,
+              },
+            ],
+          },
+        ],
+      }),
+    };
+    const command = new InvokeModelCommand(params);
+    const res = await client.send(command);
+    const jsonString = new TextDecoder().decode(res.body);
+    const modelRes = JSON.parse(jsonString);
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    console.log(modelRes.content[0].text);
+
+    throw new Error('Bedrock is not yet implemented');
+  } else {
+    const client = new TranslateClient(creds);
+    const responses = await sendDocumentsToTranslate(
+      client,
+      SourceLanguageCode,
+      TargetLanguageCode,
+      docs
+    );
+    if (responses.some(res => res.status === 'rejected')) {
+      throw new Error('One or more parts of the document failed to translate.');
     }
-    return docs;
-  }, [] as Documents);
-  return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
+
+    let sourceLanguageResponse = '';
+
+    const translateTextResponse = responses.reduce((docs, response) => {
+      if (response.status === 'fulfilled') {
+        sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
+        return docs.concat([response.value.TranslatedText ?? '']);
+      }
+      return docs;
+    }, [] as Documents);
+    return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
+  }
 }
 
 /**
