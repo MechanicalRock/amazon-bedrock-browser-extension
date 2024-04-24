@@ -35,8 +35,8 @@
       this.form.targetLang = lockr.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en');
       this.cachingEnabled = lockr.get(ExtensionOptions.CACHING_ENABLED, false);
       this.prevtargetLang = lockr.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto');
-      this.useBedrock = lockr.get(ExtensionOptions.BEDROCK_ENABLED, false);
-      
+      this.bedrockEnabled = lockr.get(ExtensionOptions.BEDROCK_ENABLED, false);
+            
       onMessage('status', async ({ data: _data }) => {
         const data = _data as unknown;
         const { status, message } = data as TranslateStatusData;
@@ -86,6 +86,7 @@
             },
             tabId,
             cachingEnabled: this.cachingEnabled,
+            bedrockEnabled: this.bedrockEnabled,
           };
           
           this.prevtargetLang = this.form.targetLang;

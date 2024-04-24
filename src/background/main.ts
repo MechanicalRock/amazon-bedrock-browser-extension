@@ -79,6 +79,7 @@ browser.commands.onCommand.addListener(command => {
         },
         tabId,
         cachingEnabled: (await local.get(ExtensionOptions.CACHING_ENABLED, 'false')) === 'true',
+        bedrockEnabled: (await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false')) === 'true',
       };
 
       void sendMessage('translate', message, 'content-script@' + tabId);
@@ -154,6 +155,7 @@ browser.contextMenus.onClicked.addListener((info): void => {
             secretAccessKey: await local.get(AwsOptions.AWS_SECRET_ACCESS_KEY, ''),
           },
         },
+        Boolean(JSON.parse(await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false'))),
         await local.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto'),
         await local.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en'),
         [info.selectionText || '']

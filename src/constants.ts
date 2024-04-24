@@ -45,6 +45,7 @@ export enum ExtensionOptions {
   CACHING_ENABLED = 'cachingEnabled',
   DEFAULT_SOURCE_LANG = 'defaultSourceLang',
   DEFAULT_TARGET_LANG = 'defaultTargetLang',
+  BEDROCK_ENABLED = 'bedrockEnabled',
 }
 
 /*-----------------------------*\

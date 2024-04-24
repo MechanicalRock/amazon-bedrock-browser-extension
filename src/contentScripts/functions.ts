@@ -112,10 +112,13 @@ export function bindPages(pages: string[]): Documents {
  */
 export async function translateMany(
   creds: TranslateClientConfig,
+  bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
   docs: Documents
 ): Promise<TranslatedDocuments> {
+  console.log('Using Bedrock:', bedrockEnabled);
+  // TODO use different client here depending on whether Bedrock is enabled
   const client = new TranslateClient(creds);
   const responses = await sendDocumentsToTranslate(
     client,
