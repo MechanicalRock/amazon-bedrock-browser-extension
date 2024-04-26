@@ -20,7 +20,8 @@ import {
   CacheTextMap,
   TranslatedDocuments,
 } from '../_contracts';
-import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN } from '../constants';
+import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN, CONCURRENCY_LIMIT } from '../constants';
+import pLimit from 'p-limit';
 
 /**
  * Recursively crawls the webpage starting from the specified starting node and translates
@@ -162,26 +163,29 @@ async function sendDocumentsToTranslate(
   docs: Documents
 ) {
   console.log('number of docs: ', docs.length);
+  const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
   if (bedrockEnabled) {
     return await Promise.allSettled(
-      docs.map(async doc => {
-        try {
-          const command = BedrockTextCommand(doc, TargetLanguageCode);
-          const res = await client.send(command);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-          const jsonString = new TextDecoder().decode(res.body);
-          const modelRes = JSON.parse(jsonString);
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          if (modelRes.content[0].text === '') {
-            console.error('Empty response from Bedrock:');
-          } else {
+      docs.map(doc => {
+        return concurrentLimit(async () => {
+          try {
+            const command = BedrockTextCommand(doc, TargetLanguageCode);
+            const res = await client.send(command);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+            const jsonString = new TextDecoder().decode(res.body);
+            const modelRes = JSON.parse(jsonString);
             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            return modelRes.content[0].text as string;
+            if (modelRes.content[0].text === '') {
+              console.error('Empty response from Bedrock:');
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              return modelRes.content[0].text as string;
+            }
+          } catch (error) {
+            console.error('Error processing request:', error);
+            throw error; // Re-throw the error to be caught by Promise.allSettled
           }
-        } catch (error) {
-          console.error('Error processing request:', error);
-          throw error; // Re-throw the error to be caught by Promise.allSettled
-        }
+        });
       })
     );
   } else {

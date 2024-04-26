@@ -26,6 +26,13 @@ export const PAGE_PATTERN = /<\|\d+:(?<=:).*?(?=\|)\|>/g;
 export const PAGE_SPLIT_PATTERN = /(?:<\|)|(?:\|>)/g;
 
 /*-----------------------------*\
+ * AWS Bedrock API concurrency
+\*-----------------------------*/
+
+// The maximum number of concurrent connections for AWS Bedrock from a single tab
+export const CONCURRENCY_LIMIT: number = 10;
+
+/*-----------------------------*\
  * localStorage Access Keys
 \*-----------------------------*/
 
