@@ -12,7 +12,7 @@ export function BedrockTextCommand(
     accept: 'application/json',
     body: JSON.stringify({
       anthropic_version: 'bedrock-2023-05-31',
-      max_tokens: 4096,
+      max_tokens: Text.split(/\s+/).length * 2, // limit the number of tokens to generate
       temperature: 0.2,
       top_k: 250,
       top_p: 1,
