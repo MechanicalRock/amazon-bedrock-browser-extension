@@ -41,16 +41,17 @@ const local = {
   },
 };
 
+// TODO not currently working because of credentials being stored in the popup
 browser.runtime.onInstalled.addListener((): void => {
   console.info('Extension installed');
   /**
    * Translate selection in a popup using right-click menu
    */
-  browser.contextMenus.create({
-    title: 'Translate selection',
-    contexts: ['selection'],
-    id: 'translate-selection',
-  });
+  // browser.contextMenus.create({
+  //   title: 'Translate selection',
+  //   contexts: ['selection'],
+  //   id: 'translate-selection',
+  // });
 });
 
 let previousTabId = 0;
