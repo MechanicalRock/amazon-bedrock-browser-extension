@@ -30,9 +30,21 @@ To use this extension you will need to follow the steps below:
 6. Copy the **Secret Access Key** from your IAM user access key and paste it into the appropriate spot in the extension settings.
 7. Click Save Settings.
 
-Additionally, for AWS Bedrock, you need to ensure that the IAM user has the required Bedrock model enabled - access can be requested in AWS Console. The model currently used is `anthropic.claude-3-sonnet-20240229-v1:0`
-
 After you have done this you can now use the extension popup to translate web pages using your provided password.
+
+### AWS Bedrock
+For using AWS Bedrock, you need to ensure that the IAM user has the required Bedrock model enabled - access can be requested in AWS Console. The model currently used is `anthropic.claude-3-sonnet-20240229-v1:0`
+
+1. Go to AWS Bedrock service in AWS Console.
+2. Select `Base Models` under `Foundation models` in the left side menu.
+3. Go to `Request model access` at the top of the page.
+4. Select `Manage model access`.
+5. Submit a use case for `Anthropic - Claude 3 Sonnet model`.
+6. Access to the model should be granted within a few minutes.
+
+![Preview](bedrock.jpg)
+
+You can select to translate your pages using AWS Bedrock by selecting AWS Bedrock in the extension options.
 
 ## Caching
 
