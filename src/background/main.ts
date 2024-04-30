@@ -41,16 +41,17 @@ const local = {
   },
 };
 
+// TODO not currently working because of credentials being stored in the popup
 browser.runtime.onInstalled.addListener((): void => {
   console.info('Extension installed');
   /**
    * Translate selection in a popup using right-click menu
    */
-  browser.contextMenus.create({
-    title: 'Translate selection',
-    contexts: ['selection'],
-    id: 'translate-selection',
-  });
+  // browser.contextMenus.create({
+  //   title: 'Translate selection',
+  //   contexts: ['selection'],
+  //   id: 'translate-selection',
+  // });
 });
 
 let previousTabId = 0;
@@ -79,6 +80,7 @@ browser.commands.onCommand.addListener(command => {
         },
         tabId,
         cachingEnabled: (await local.get(ExtensionOptions.CACHING_ENABLED, 'false')) === 'true',
+        bedrockEnabled: (await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false')) === 'true',
       };
 
       void sendMessage('translate', message, 'content-script@' + tabId);
@@ -154,6 +156,7 @@ browser.contextMenus.onClicked.addListener((info): void => {
             secretAccessKey: await local.get(AwsOptions.AWS_SECRET_ACCESS_KEY, ''),
           },
         },
+        Boolean(JSON.parse(await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false'))),
         await local.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto'),
         await local.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en'),
         [info.selectionText || '']

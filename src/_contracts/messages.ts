@@ -14,6 +14,7 @@ export interface TranslateCommandData extends JsonObject {
   };
   tabId: number;
   cachingEnabled: boolean;
+  bedrockEnabled: boolean;
 }
 
 export interface TranslateStatusData {

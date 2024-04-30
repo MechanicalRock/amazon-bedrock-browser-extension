@@ -24,6 +24,7 @@
           defaultSourceLang: 'auto',
           defaultTargetLang: 'en',
           cachingEnabled: true,
+          bedrockEnabled: false,
         },
       };
     },
@@ -41,6 +42,7 @@
           defaultSourceLang,
           defaultTargetLang,
           cachingEnabled,
+          bedrockEnabled,
         } = this.configuration;
 
         // Validate that the values are all set
@@ -51,6 +53,7 @@
           lockr.set(ExtensionOptions.DEFAULT_SOURCE_LANG, defaultSourceLang);
           lockr.set(ExtensionOptions.DEFAULT_TARGET_LANG, defaultTargetLang);
           lockr.set(ExtensionOptions.CACHING_ENABLED, cachingEnabled);
+          lockr.set(ExtensionOptions.BEDROCK_ENABLED, bedrockEnabled);
 
           // Notify the user that the save was successful
           this.hasError = false;
@@ -71,6 +74,7 @@
       this.configuration.defaultSourceLang = lockr.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto');
       this.configuration.defaultTargetLang = lockr.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en');
       this.configuration.cachingEnabled = lockr.get(ExtensionOptions.CACHING_ENABLED, true);
+      this.configuration.bedrockEnabled=  lockr.get(ExtensionOptions.BEDROCK_ENABLED, false);
     },
   });
 </script>
@@ -195,6 +199,19 @@
           id="enable-caching"
           v-model="configuration.cachingEnabled"
           :checked="configuration.cachingEnabled"
+        />
+      </div>
+      <div class="aws-form-row">
+        <label for="enable-bedrock">Enable AWS Bedrock</label>
+        <p>
+          If Bedrock is enabled, translation will be performed by AWS Bedrock model instead of AWS Translate.
+          Note, the AWS user created will need to have the appropriate permissions to use the Bedrock model.
+        </p>
+        <input
+          type="checkbox"
+          id="enable-bedrock"
+          v-model="configuration.bedrockEnabled"
+          :checked="configuration.bedrockEnabled"
         />
       </div>
 

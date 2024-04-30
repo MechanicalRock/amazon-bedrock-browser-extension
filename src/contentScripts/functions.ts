@@ -8,6 +8,8 @@ import {
   TranslateTextCommandOutput,
   TranslateClientConfig,
 } from '@aws-sdk/client-translate';
+import { BedrockTextCommand } from './bedrock';
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { lockr } from '../modules';
 import {
   TranslateData,
@@ -18,7 +20,8 @@ import {
   CacheTextMap,
   TranslatedDocuments,
 } from '../_contracts';
-import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN } from '../constants';
+import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN, CONCURRENCY_LIMIT } from '../constants';
+import pLimit from 'p-limit';
 
 /**
  * Recursively crawls the webpage starting from the specified starting node and translates
@@ -112,13 +115,17 @@ export function bindPages(pages: string[]): Documents {
  */
 export async function translateMany(
   creds: TranslateClientConfig,
+  bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
   docs: Documents
 ): Promise<TranslatedDocuments> {
-  const client = new TranslateClient(creds);
+  console.debug('Using Bedrock:', bedrockEnabled);
+  const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
+
   const responses = await sendDocumentsToTranslate(
     client,
+    bedrockEnabled,
     SourceLanguageCode,
     TargetLanguageCode,
     docs
@@ -131,8 +138,13 @@ export async function translateMany(
 
   const translateTextResponse = responses.reduce((docs, response) => {
     if (response.status === 'fulfilled') {
-      sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
-      return docs.concat([response.value.TranslatedText ?? '']);
+      if (bedrockEnabled) {
+        sourceLanguageResponse = SourceLanguageCode;
+        return docs.concat([response.value ?? '']);
+      } else {
+        sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
+        return docs.concat([response.value.TranslatedText ?? '']);
+      }
     }
     return docs;
   }, [] as Documents);
@@ -144,25 +156,54 @@ export async function translateMany(
  * NOTE: This can be refactored.
  */
 async function sendDocumentsToTranslate(
-  client: TranslateClient,
+  client: TranslateClient | BedrockRuntimeClient,
+  bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
   docs: Documents
 ) {
-  return await Promise.allSettled(
-    docs.map(doc => {
-      return new Promise<TranslateTextCommandOutput>((resolve, reject) => {
-        const command = new TranslateTextCommand({
-          Text: doc,
-          SourceLanguageCode,
-          TargetLanguageCode,
+  console.log('number of docs: ', docs.length);
+  const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
+  if (bedrockEnabled) {
+    return await Promise.allSettled(
+      docs.map(doc => {
+        return concurrentLimit(async () => {
+          try {
+            const command = BedrockTextCommand(doc, TargetLanguageCode);
+            const res = await client.send(command);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+            const jsonString = new TextDecoder().decode(res.body);
+            const modelRes = JSON.parse(jsonString);
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (modelRes.content[0].text === '') {
+              console.error('Empty response from Bedrock:');
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              return modelRes.content[0].text as string;
+            }
+          } catch (error) {
+            console.error('Error processing request:', error);
+            throw error; // Re-throw the error to be caught by Promise.allSettled
+          }
         });
-        promiseWithRetry<TranslateTextCommandOutput>(resolve, reject, async () => {
-          return client.send(command);
+      })
+    );
+  } else {
+    return await Promise.allSettled(
+      docs.map(doc => {
+        return new Promise<TranslateTextCommandOutput>((resolve, reject) => {
+          const command = new TranslateTextCommand({
+            Text: doc,
+            SourceLanguageCode,
+            TargetLanguageCode,
+          });
+          promiseWithRetry<TranslateTextCommandOutput>(resolve, reject, async () => {
+            return (client as TranslateClient).send(command);
+          });
         });
-      });
-    })
-  );
+      })
+    );
+  }
 }
 
 /**

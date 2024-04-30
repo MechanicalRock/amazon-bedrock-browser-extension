@@ -35,7 +35,8 @@
       this.form.targetLang = lockr.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en');
       this.cachingEnabled = lockr.get(ExtensionOptions.CACHING_ENABLED, false);
       this.prevtargetLang = lockr.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto');
-      
+      this.bedrockEnabled = lockr.get(ExtensionOptions.BEDROCK_ENABLED, false);
+            
       onMessage('status', async ({ data: _data }) => {
         const data = _data as unknown;
         const { status, message } = data as TranslateStatusData;
@@ -85,6 +86,7 @@
             },
             tabId,
             cachingEnabled: this.cachingEnabled,
+            bedrockEnabled: this.bedrockEnabled,
           };
           
           this.prevtargetLang = this.form.targetLang;
@@ -109,16 +111,8 @@
        * Attempts the decrypt and retrieve the user's saved regionId with the provided password.
        */
       async clearPageCache() {
-        const tabId = await getCurrentTabId();
         window.console.log('clear page cache button clicked')
-        sendMessage(
-          'status',
-          { status: 'error', message: 'Testing.' },
-          'popup'
-        );
-        window.console.log('a message sent to popup for testing')
         const currentTabId = await getCurrentTabId();
-        
         sendMessage(
           'clearCache', 
            { tabId: currentTabId },

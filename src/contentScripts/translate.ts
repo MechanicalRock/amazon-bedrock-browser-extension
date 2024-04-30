@@ -68,7 +68,7 @@ function translateFromCache(pageMap: PageMap, nodeMap: NodeMap, cache: CacheText
  * If caching is enabled, the result will be cached to localStorage.
  */
 async function translateFromApi(
-  { creds, langs }: TranslateCommandData,
+  { creds, langs, bedrockEnabled }: TranslateCommandData,
   nodeMap: NodeMap,
   pageMap: PageMap
 ) {
@@ -81,7 +81,7 @@ async function translateFromApi(
   const docs = bindPages(writtenPages);
 
   // Translate the documents
-  const tDocs = await translateMany(creds, langs.source, langs.target, docs);
+  const tDocs = await translateMany(creds, bedrockEnabled, langs.source, langs.target, docs);
 
   // Break the translated documents back into pages
   const tPagesRaw = breakDocuments(tDocs.translatedText);
