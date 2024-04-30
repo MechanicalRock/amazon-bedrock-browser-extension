@@ -21,6 +21,8 @@ import { lockr } from '../modules';
 import { TranslateCommandData } from '../_contracts';
 import { createOverlay, destroyOverlay } from './functions';
 import { startTranslation } from './translate';
+import { AwsOptions, ExtensionOptions } from '~/constants';
+import { TranslateClientConfig } from '@aws-sdk/client-translate';
 
 // Firefox `browser.tabs.executeScript()` requires scripts return a primitive value
 (() => {
@@ -31,6 +33,46 @@ import { startTranslation } from './translate';
   translateSelectionHandler();
   clearCacheHandler();
   tabPrevHandler();
+
+  // get current tab id
+  const currentTabId = lockr.get('tabId');
+  console.log(`the tabId cached to translate is ${currentTabId}`);
+  if (currentTabId) {
+    // TODO add here a call to translate the page if we want to have it translated constantly if we want to do so
+    // but will need the creds stored somewhere locally
+    console.log('Translating the whole page');
+    const credentials = {
+      accessKeyId: lockr.get(AwsOptions.AWS_ACCESS_KEY_ID) ?? '',
+      secretAccessKey: lockr.get(AwsOptions.AWS_SECRET_ACCESS_KEY) ?? '',
+    };
+    const config: TranslateClientConfig = {
+      region: lockr.get(AwsOptions.AWS_REGION) ?? '',
+      credentials,
+    };
+
+    // check if value for this tabId has been cached - aka if we should be translating that page
+    // we should cash it together with partial url of the website
+    // aka url_tabId
+
+    // if yes, then run the translation of the page
+
+    const message = {
+      creds: config,
+      langs: {
+        source: lockr.get(ExtensionOptions.DEFAULT_SOURCE_LANG) ?? 'en',
+        target: lockr.get(ExtensionOptions.DEFAULT_TARGET_LANG) ?? 'pl',
+      },
+      currentTabId,
+      cachingEnabled: lockr.get(ExtensionOptions.CACHING_ENABLED) ?? false,
+      bedrockEnabled: lockr.get(ExtensionOptions.BEDROCK_ENABLED) ?? false,
+    };
+
+    async () => {
+      await sendMessage('translate', message, 'content-script@' + currentTabId);
+    };
+  } else {
+    console.log('Not translating the page');
+  }
 })();
 
 /**
@@ -54,6 +96,23 @@ function translateHandler() {
 
       // Send a message informing the popup that the translation has started
       void sendMessage('status', { status: 'translating', message: '' }, 'popup');
+
+      if (lockr.get('awsRegion') === undefined) {
+        lockr.set(AwsOptions.AWS_REGION, data.creds.region);
+        lockr.set(AwsOptions.AWS_ACCESS_KEY_ID, data.creds.credentials.accessKeyId);
+        lockr.set(AwsOptions.AWS_SECRET_ACCESS_KEY, data.creds.credentials.secretAccessKey);
+        lockr.set(ExtensionOptions.DEFAULT_SOURCE_LANG, data.langs.source);
+        lockr.set(ExtensionOptions.DEFAULT_TARGET_LANG, data.langs.target);
+        lockr.set(ExtensionOptions.CACHING_ENABLED, data.cachingEnabled);
+        lockr.set(ExtensionOptions.BEDROCK_ENABLED, data.bedrockEnabled);
+      }
+      console.log('tabId from the data is: ', data.tabId);
+      console.log('context is: ', context);
+      console.log('tabId from the context is: ', tabId);
+
+      lockr.set('tabId', tabId || data.tabId);
+
+      // TODO use a combination of page URL and tabId
 
       // Start the webpage translation process
       const startingEl = document.querySelector('body');
