@@ -32,6 +32,7 @@ export function crawl(
   node: Node,
   data: TranslateData = { pageMap: {}, nodeMap: {} }
 ): TranslateData {
+  // console.log("node is: ", node)
   const text = validNodeText(node);
   // If it's a text node, add it to docs and map
   if (text) {
@@ -42,7 +43,9 @@ export function crawl(
   }
   // Don't crawl Script or Style tags
   const name = node.nodeName;
+  console.log('name of the node:', name);
   if (!IGNORED_NODES.includes(name) && node.childNodes.length > 0) {
+    console.log('name of the node being found:', name);
     // Crawl the node children
     node.childNodes.forEach((child: Node) => {
       crawl(child, data);
@@ -57,6 +60,10 @@ export function crawl(
  */
 export function validNodeText(node: Node): string | null {
   // Make sure the node is a text node
+  // if(node.nodeName === "HEADER") {
+  //   // console.log(node);
+  // }
+  // console.log(node.nodeName);
   if (node.nodeType === node.TEXT_NODE) {
     const text = node.textContent;
     // We don't want node text if it is only white space and line breaks
