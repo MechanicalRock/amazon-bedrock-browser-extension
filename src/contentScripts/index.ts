@@ -67,9 +67,7 @@ import { TranslateClientConfig } from '@aws-sdk/client-translate';
       bedrockEnabled: lockr.get(ExtensionOptions.BEDROCK_ENABLED) ?? false,
     };
 
-    async () => {
-      await sendMessage('translate', message, 'content-script@' + currentTabId);
-    };
+    void sendMessage('translate', message, 'content-script@' + currentTabId);
   } else {
     console.log('Not translating the page');
   }
@@ -95,7 +93,9 @@ function translateHandler() {
       createOverlay();
 
       // Send a message informing the popup that the translation has started
-      void sendMessage('status', { status: 'translating', message: '' }, 'popup');
+      if (context === 'popup') {
+        void sendMessage('status', { status: 'translating', message: '' }, 'popup');
+      }
 
       if (lockr.get('awsRegion') === undefined) {
         lockr.set(AwsOptions.AWS_REGION, data.creds.region);
@@ -105,15 +105,8 @@ function translateHandler() {
         lockr.set(ExtensionOptions.DEFAULT_TARGET_LANG, data.langs.target);
         lockr.set(ExtensionOptions.CACHING_ENABLED, data.cachingEnabled);
         lockr.set(ExtensionOptions.BEDROCK_ENABLED, data.bedrockEnabled);
+        lockr.set('tabId', tabId || data.tabId);
       }
-      console.log('tabId from the data is: ', data.tabId);
-      console.log('context is: ', context);
-      console.log('tabId from the context is: ', tabId);
-
-      lockr.set('tabId', tabId || data.tabId);
-
-      // TODO use a combination of page URL and tabId
-
       // Start the webpage translation process
       const startingEl = document.querySelector('body');
 
@@ -132,10 +125,11 @@ function translateHandler() {
           console.error(e, startingEl);
 
           // Send a message to the popup indicating that an error occurred during translation
+          const currentTabId = tabId || data.tabId;
           void sendMessage(
             'status',
             { status: 'error', message: 'An error occurred. The document failed to translate.' },
-            context + '@' + tabId
+            context + '@' + currentTabId
           );
         })
         .finally(() => {
