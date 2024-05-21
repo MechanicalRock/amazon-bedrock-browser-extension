@@ -5,10 +5,10 @@
 import {
   TranslateClient,
   TranslateTextCommand,
-  TranslateTextCommandOutput,
+  // TranslateTextCommandOutput,
   TranslateClientConfig,
 } from '@aws-sdk/client-translate';
-import { BedrockTextCommand } from './bedrock';
+// import { BedrockTextCommand } from './bedrock';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { lockr } from '../modules';
 import {
@@ -18,10 +18,11 @@ import {
   PageMap,
   CacheLangs,
   CacheTextMap,
-  TranslatedDocuments,
+  TranslateData_V2,
+  PageMap_V2,
 } from '../_contracts';
-import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN, CONCURRENCY_LIMIT } from '../constants';
-import pLimit from 'p-limit';
+import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN } from '../constants';
+// import pLimit from 'p-limit';
 
 /**
  * Recursively crawls the webpage starting from the specified starting node and translates
@@ -46,6 +47,37 @@ export function crawl(
     // Crawl the node children
     node.childNodes.forEach((child: Node) => {
       crawl(child, data);
+    });
+  }
+  return data;
+}
+
+export function crawl_V2(
+  node: Node,
+  data: TranslateData_V2 = { pageMap: [], nodeMap: {} }
+): TranslateData_V2 {
+  const text = validNodeText(node);
+  // If it's a text node, add it to docs and map
+  if (text) {
+    // Add the node to the node map with an ID
+    // console.log("node is: ", node);
+    // console.log("data is: ", data);
+    const id = Object.keys(data.nodeMap).length + 1;
+
+    // console.log("id is: ", id);
+    data.nodeMap[`${id}`] = node;
+    data.pageMap.push({
+      id: id.toString(),
+      originalText: text,
+      translatedText: null,
+    });
+  }
+  // Don't crawl Script or Style tags
+  const name = node.nodeName;
+  if (!IGNORED_NODES.includes(name) && node.childNodes.length > 0) {
+    // Crawl the node children
+    node.childNodes.forEach((child: Node) => {
+      crawl_V2(child, data);
     });
   }
   return data;
@@ -118,118 +150,180 @@ export async function translateMany(
   bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
-  docs: Documents
-): Promise<TranslatedDocuments> {
+  pagemap: PageMap_V2[]
+): Promise<PageMap_V2[]> {
   console.debug('Using Bedrock:', bedrockEnabled);
   const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
 
-  const responses = await sendDocumentsToTranslate(
+  const responses = await sendDocumentsToTranslate_V2(
     client,
     bedrockEnabled,
     SourceLanguageCode,
     TargetLanguageCode,
-    docs
+    pagemap
   );
-  if (responses.some(res => res.status === 'rejected')) {
-    throw new Error('One or more parts of the document failed to translate.');
-  }
+  console.log('responses are: ', responses);
 
-  let sourceLanguageResponse = '';
+  return responses;
+  // console.log("Response after all translations was: ", responses);
+  // if (responses.some(res => res.status === 'rejected')) {
+  //   throw new Error('One or more parts of the document failed to translate.');
+  // }
 
-  const translateTextResponse = responses.reduce((docs, response) => {
-    if (response.status === 'fulfilled') {
-      if (bedrockEnabled) {
-        sourceLanguageResponse = SourceLanguageCode;
-        return docs.concat([response.value ?? '']);
-      } else {
-        sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
-        return docs.concat([response.value.TranslatedText ?? '']);
-      }
-    }
-    return docs;
-  }, [] as Documents);
-  return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
+  // let sourceLanguageResponse = '';
+
+  // const translateTextResponse = responses.reduce((docs, response) => {
+  //   if (response.status === 'fulfilled') {
+  //     if (bedrockEnabled) {
+  //       sourceLanguageResponse = SourceLanguageCode;
+  //       return docs.concat([response.value ?? '']);
+  //     } else {
+  //       sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
+  //       return docs.concat([response.value.TranslatedText ?? '']);
+  //     }
+  //   }
+  //   return docs;
+  // }, [] as Documents);
+  // // console.log("Docs after the concatination", translateTextResponse);
+  // return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
 }
 
 /**
  * Maps over a set of documents to be translated and waits for all of the requests to settle.
  * NOTE: This can be refactored.
  */
-async function sendDocumentsToTranslate(
+// async function sendDocumentsToTranslate(
+//   client: TranslateClient | BedrockRuntimeClient,
+//   bedrockEnabled: boolean,
+//   SourceLanguageCode: string,
+//   TargetLanguageCode: string,
+//   docs: Documents
+// ) {
+//   const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
+//   if (bedrockEnabled) {
+//     return await Promise.allSettled(
+//       docs.map(doc => {
+//         return concurrentLimit(async () => {
+//           try {
+//             const command = BedrockTextCommand(doc, TargetLanguageCode);
+//             const res = await client.send(command);
+//             // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+//             const jsonString = new TextDecoder().decode(res.body);
+//             const modelRes = JSON.parse(jsonString);
+//             // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+//             if (modelRes.content[0].text === '') {
+//               console.error('Empty response from Bedrock:');
+//             } else {
+//               // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+//               return modelRes.content[0].text as string;
+//             }
+//           } catch (error) {
+//             console.error('Error processing request:', error);
+//             throw error; // Re-throw the error to be caught by Promise.allSettled
+//           }
+//         });
+//       })
+//     );
+//   } else {
+//     return await Promise.allSettled(
+//       docs.map(doc => {
+//         return new Promise<TranslateTextCommandOutput>((resolve, reject) => {
+//           const command = new TranslateTextCommand({
+//             Text: doc,
+//             SourceLanguageCode,
+//             TargetLanguageCode,
+//           });
+//           promiseWithRetry<TranslateTextCommandOutput>(resolve, reject, async () => {
+//             return (client as TranslateClient).send(command);
+//           });
+//         });
+//       })
+//     );
+//   }
+// }
+
+/// TODOD clean up this function with proper error handling and retry
+async function sendDocumentsToTranslate_V2(
   client: TranslateClient | BedrockRuntimeClient,
   bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
-  docs: Documents
+  pageMap: PageMap_V2[]
 ) {
-  console.log('number of docs: ', docs.length);
-  const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
+  // console.log('Docs are: ', docs);
+  // const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
   if (bedrockEnabled) {
-    return await Promise.allSettled(
-      docs.map(doc => {
-        return concurrentLimit(async () => {
-          try {
-            const command = BedrockTextCommand(doc, TargetLanguageCode);
-            const res = await client.send(command);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
-            const jsonString = new TextDecoder().decode(res.body);
-            const modelRes = JSON.parse(jsonString);
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-            if (modelRes.content[0].text === '') {
-              console.error('Empty response from Bedrock:');
-            } else {
-              // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-              return modelRes.content[0].text as string;
-            }
-          } catch (error) {
-            console.error('Error processing request:', error);
-            throw error; // Re-throw the error to be caught by Promise.allSettled
-          }
-        });
-      })
-    );
+    // return await Promise.allSettled(
+    //   docs.map(doc => {
+    //     return concurrentLimit(async () => {
+    //       try {
+    //         const command = BedrockTextCommand(doc, TargetLanguageCode);
+    //         const res = await client.send(command);
+    //         // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access
+    //         const jsonString = new TextDecoder().decode(res.body);
+    //         const modelRes = JSON.parse(jsonString);
+    //         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    //         if (modelRes.content[0].text === '') {
+    //           console.error('Empty response from Bedrock:');
+    //         } else {
+    //           // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    //           return modelRes.content[0].text as string;
+    //         }
+    //       } catch (error) {
+    //         console.error('Error processing request:', error);
+    //         throw error; // Re-throw the error to be caught by Promise.allSettled
+    //       }
+    //     });
+    //   })
+    // );
   } else {
-    return await Promise.allSettled(
-      docs.map(doc => {
-        return new Promise<TranslateTextCommandOutput>((resolve, reject) => {
-          const command = new TranslateTextCommand({
-            Text: doc,
-            SourceLanguageCode,
-            TargetLanguageCode,
-          });
-          promiseWithRetry<TranslateTextCommandOutput>(resolve, reject, async () => {
-            return (client as TranslateClient).send(command);
-          });
+    const all_responses: PageMap_V2[] = [];
+
+    await Promise.all(
+      pageMap.map(async doc => {
+        const command = new TranslateTextCommand({
+          Text: doc.originalText,
+          SourceLanguageCode,
+          TargetLanguageCode,
+        });
+        const response = await (client as TranslateClient).send(command);
+        all_responses.push({
+          id: doc.id,
+          originalText: doc.originalText,
+          translatedText: response.TranslatedText,
         });
       })
     );
+
+    return all_responses;
   }
+  return [];
 }
 
 /**
  * Executes an Promise and retries if it is rejected up to 3 times.
  */
-function promiseWithRetry<T>(
-  resolve: (value: T) => void,
-  reject: (reason?: any) => void,
-  cb: () => Promise<T>,
-  attempts = 0
-) {
-  setTimeout(
-    () => {
-      cb()
-        .then(res => resolve(res))
-        .catch(e => {
-          if (attempts < 4) {
-            void promiseWithRetry<T>(resolve, reject, cb, attempts + 1);
-          } else {
-            reject(e);
-          }
-        });
-    },
-    Math.pow(10, attempts)
-  );
-}
+// function promiseWithRetry<T>(
+//   resolve: (value: T) => void,
+//   reject: (reason?: any) => void,
+//   cb: () => Promise<T>,
+//   attempts = 0
+// ) {
+//   setTimeout(
+//     () => {
+//       cb()
+//         .then(res => resolve(res))
+//         .catch(e => {
+//           if (attempts < 4) {
+//             void promiseWithRetry<T>(resolve, reject, cb, attempts + 1);
+//           } else {
+//             reject(e);
+//           }
+//         });
+//     },
+//     Math.pow(10, attempts)
+//   );
+// }
 
 /**
  * Breaks apart a set of documents into pages.

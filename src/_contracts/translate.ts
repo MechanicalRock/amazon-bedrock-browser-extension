@@ -6,6 +6,11 @@ export interface TranslateData {
   nodeMap: NodeMap;
 }
 
+export interface TranslateData_V2 {
+  pageMap: PageMap_V2[];
+  nodeMap: NodeMap;
+}
+
 export type Documents = string[];
 
 export type TranslatedDocuments = {
@@ -20,4 +25,10 @@ export interface NodeMap {
 
 export interface PageMap {
   [key: string]: string;
+}
+
+export interface PageMap_V2 {
+  id: string;
+  originalText: string;
+  translatedText: string | null;
 }

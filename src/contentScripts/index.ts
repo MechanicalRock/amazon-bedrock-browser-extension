@@ -21,6 +21,9 @@ import { lockr } from '../modules';
 import { TranslateCommandData } from '../_contracts';
 import { createOverlay, destroyOverlay } from './functions';
 import { startTranslation } from './translate';
+import { TranslateClientConfig } from '@aws-sdk/client-translate';
+
+import { AwsOptions, ExtensionOptions } from '~/constants';
 
 // Firefox `browser.tabs.executeScript()` requires scripts return a primitive value
 (() => {
@@ -31,6 +34,88 @@ import { startTranslation } from './translate';
   translateSelectionHandler();
   clearCacheHandler();
   tabPrevHandler();
+
+  const startingElement = document.body;
+
+  // Options for the observer (which mutations to observe)
+  const config = { childList: true, subtree: true };
+
+  // Callback function to execute when mutations are observed
+  const callback = (mutationList: MutationRecord[]) => {
+    for (const mutation of mutationList) {
+      if (mutation.type === 'childList') {
+        const currentTabId = lockr.get('tabId');
+        // console.log(`A mutation has been identified: `, mutation);
+        let shouldCrawl = false;
+        for (const addedNode of mutation.addedNodes) {
+          if (addedNode.textContent) {
+            shouldCrawl = true;
+          }
+        }
+        for (const removedNode of mutation.removedNodes) {
+          if (removedNode.textContent) {
+            shouldCrawl = true;
+          }
+        }
+
+        // check if value for this tabId has been cached - aka if we should be translating that page
+        // we should cash it together with partial url of the website
+        // aka url_tabId
+        if (currentTabId && shouldCrawl) {
+          const credentials = {
+            accessKeyId: lockr.get(AwsOptions.AWS_ACCESS_KEY_ID) ?? '',
+            secretAccessKey: lockr.get(AwsOptions.AWS_SECRET_ACCESS_KEY) ?? '',
+          };
+          const config: TranslateClientConfig = {
+            region: lockr.get(AwsOptions.AWS_REGION) ?? '',
+            credentials,
+          };
+
+          // if yes, then run the translation of the page
+
+          const conf = {
+            creds: config,
+            langs: {
+              source: lockr.get(ExtensionOptions.DEFAULT_SOURCE_LANG) ?? 'en',
+              target: lockr.get(ExtensionOptions.DEFAULT_TARGET_LANG) ?? 'pl',
+            },
+            tabId: currentTabId,
+            cachingEnabled: lockr.get(ExtensionOptions.CACHING_ENABLED) ?? false,
+            bedrockEnabled: lockr.get(ExtensionOptions.BEDROCK_ENABLED) ?? false,
+          };
+
+          startTranslation(conf, startingElement)
+            .then(() => {
+              // Send a message to the popup indicating the translation has completed
+              void sendMessage(
+                'status',
+                { status: 'complete', message: 'Translation complete.' },
+                'popup'
+              );
+            })
+            .catch(e => {
+              console.error(e, startingElement);
+
+              // Send a message to the popup indicating that an error occurred during translation
+              void sendMessage(
+                'status',
+                {
+                  status: 'error',
+                  message: 'An error occurred. The document failed to translate.',
+                },
+                'content-script@' + currentTabId
+              );
+            });
+        }
+      }
+    }
+  };
+
+  // Create an observer instance linked to the callback function
+  const observer = new MutationObserver(callback);
+
+  // Start observing the target node for configured mutations
+  observer.observe(startingElement, config);
 })();
 
 /**
@@ -51,6 +136,19 @@ function translateHandler() {
     'translate',
     ({ sender: { context, tabId }, data }) => {
       createOverlay();
+
+      const currentTabId = tabId || data.tabId;
+
+      if (lockr.get('awsRegion') === undefined) {
+        lockr.set(AwsOptions.AWS_REGION, data.creds.region);
+        lockr.set(AwsOptions.AWS_ACCESS_KEY_ID, data.creds.credentials.accessKeyId);
+        lockr.set(AwsOptions.AWS_SECRET_ACCESS_KEY, data.creds.credentials.secretAccessKey);
+        lockr.set(ExtensionOptions.DEFAULT_SOURCE_LANG, data.langs.source);
+        lockr.set(ExtensionOptions.DEFAULT_TARGET_LANG, data.langs.target);
+        lockr.set(ExtensionOptions.CACHING_ENABLED, data.cachingEnabled);
+        lockr.set(ExtensionOptions.BEDROCK_ENABLED, data.bedrockEnabled);
+        lockr.set('tabId', currentTabId);
+      }
 
       // Send a message informing the popup that the translation has started
       void sendMessage('status', { status: 'translating', message: '' }, 'popup');
@@ -76,7 +174,7 @@ function translateHandler() {
           void sendMessage(
             'status',
             { status: 'error', message: 'An error occurred. The document failed to translate.' },
-            context + '@' + tabId
+            context + '@' + currentTabId
           );
         })
         .finally(() => {

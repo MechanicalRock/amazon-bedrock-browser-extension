@@ -19,7 +19,7 @@ import { sendMessage, onMessage } from 'webext-bridge/background';
 import browser from 'webextension-polyfill';
 import { getCurrentTabId } from '../util';
 import { AwsOptions, ExtensionOptions, LOCKR_PREFIX } from '~/constants';
-import { translateMany } from '../contentScripts/functions';
+// import { translateMany } from '../contentScripts/functions';
 
 // @ts-ignore only on dev mode
 if (import.meta.hot) {
@@ -139,34 +139,34 @@ onMessage('get-current-tab', async () => {
  * Escape special characters for passing strings safely between
  * background script and content script
  */
-const escape = (text: string): string => {
-  return text.replaceAll('"', '\\"').replaceAll("'", "\\'");
-};
+// const escape = (text: string): string => {
+//   return text.replaceAll('"', '\\"').replaceAll("'", "\\'");
+// };
 
-browser.contextMenus.onClicked.addListener((info): void => {
-  void (async () => {
-    if (info.menuItemId === 'translate-selection') {
-      const tabId = await getCurrentTabId();
-      void sendMessage('show-overlay', {}, 'content-script@' + tabId);
-      const translatedDocs = await translateMany(
-        {
-          region: await local.get(AwsOptions.AWS_REGION, ''),
-          credentials: {
-            accessKeyId: await local.get(AwsOptions.AWS_ACCESS_KEY_ID, ''),
-            secretAccessKey: await local.get(AwsOptions.AWS_SECRET_ACCESS_KEY, ''),
-          },
-        },
-        Boolean(JSON.parse(await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false'))),
-        await local.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto'),
-        await local.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en'),
-        [info.selectionText || '']
-      );
+// browser.contextMenus.onClicked.addListener((info): void => {
+//   void (async () => {
+//     if (info.menuItemId === 'translate-selection') {
+//       const tabId = await getCurrentTabId();
+//       void sendMessage('show-overlay', {}, 'content-script@' + tabId);
+//       const translatedDocs = await translateMany(
+//         {
+//           region: await local.get(AwsOptions.AWS_REGION, ''),
+//           credentials: {
+//             accessKeyId: await local.get(AwsOptions.AWS_ACCESS_KEY_ID, ''),
+//             secretAccessKey: await local.get(AwsOptions.AWS_SECRET_ACCESS_KEY, ''),
+//           },
+//         },
+//         Boolean(JSON.parse(await local.get(ExtensionOptions.BEDROCK_ENABLED, 'false'))),
+//         await local.get(ExtensionOptions.DEFAULT_SOURCE_LANG, 'auto'),
+//         await local.get(ExtensionOptions.DEFAULT_TARGET_LANG, 'en'),
+//         [info.selectionText || '']
+//       );
 
-      void sendMessage(
-        'translate-selection',
-        { translatedText: escape(translatedDocs.translatedText[0]) },
-        'content-script@' + tabId
-      );
-    }
-  })();
-});
+//       void sendMessage(
+//         'translate-selection',
+//         { translatedText: escape(translatedDocs.translatedText[0]) },
+//         'content-script@' + tabId
+//       );
+//     }
+//   })();
+// });
