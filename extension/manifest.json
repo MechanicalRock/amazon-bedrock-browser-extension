@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "Amazon Translate",
+  "version": "0.5.0",
+  "description": "An extension that will auto-translate content in your browser window with Amazon Translate.",
+  "commands": {
+    "translate": {
+      "suggested_key": {
+        "default": "Alt+Shift+T"
+      },
+      "description": "Translate the webpage with your default source language and target language."
+    }
+  },
+  "action": {
+    "default_icon": "./assets/logo.png",
+    "default_popup": "./dist/popup/index.html"
+  },
+  "options_ui": {
+    "page": "./dist/options/index.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "./dist/background/background.js",
+    "type": "module"
+  },
+  "icons": {
+    "16": "./assets/logo.png",
+    "48": "./assets/logo.png",
+    "128": "./assets/logo.png"
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "activeTab",
+    "contextMenus"
+  ],
+  "optional_host_permissions": [
+    "*://*/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "./dist/contentScripts/index.global.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dist/contentScripts/style.css"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ]
+}
