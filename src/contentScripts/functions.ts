@@ -6,7 +6,6 @@ import {
   TranslateClient,
   TranslateTextCommand,
   // TranslateTextCommandOutput,
-  TranslateClientConfig,
 } from '@aws-sdk/client-translate';
 // import { BedrockTextCommand } from './bedrock';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
@@ -20,6 +19,7 @@ import {
   CacheTextMap,
   TranslateData_V2,
   PageMap_V2,
+  CacheLangs_V2,
 } from '../_contracts';
 import { IGNORED_NODES, DOC_BOUNDARY, PAGE_SPLIT_PATTERN } from '../constants';
 // import pLimit from 'p-limit';
@@ -145,48 +145,47 @@ export function bindPages(pages: string[]): Documents {
  *
  * `["<|1:algún texto|><|2:más texto|>", "<|3:aún más texto|>"]`
  */
-export async function translateMany(
-  creds: TranslateClientConfig,
-  bedrockEnabled: boolean,
-  SourceLanguageCode: string,
-  TargetLanguageCode: string,
-  pagemap: PageMap_V2[]
-): Promise<PageMap_V2[]> {
-  console.debug('Using Bedrock:', bedrockEnabled);
-  const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
+// export async function translateMany(
+//   creds: TranslateClientConfig,
+//   bedrockEnabled: boolean,
+//   SourceLanguageCode: string,
+//   TargetLanguageCode: string,
+//   pagemap: PageMap_V2[]
+// ): Promise<void> {
+//   console.debug('Using Bedrock:', bedrockEnabled);
+//   const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
 
-  const responses = await sendDocumentsToTranslate_V2(
-    client,
-    bedrockEnabled,
-    SourceLanguageCode,
-    TargetLanguageCode,
-    pagemap
-  );
-  console.log('responses are: ', responses);
+//   await sendDocumentsToTranslate_V2(
+//     client,
+//     bedrockEnabled,
+//     SourceLanguageCode,
+//     TargetLanguageCode,
+//     pagemap
+//   );
 
-  return responses;
-  // console.log("Response after all translations was: ", responses);
-  // if (responses.some(res => res.status === 'rejected')) {
-  //   throw new Error('One or more parts of the document failed to translate.');
-  // }
+//   // return responses;
+//   // console.log("Response after all translations was: ", responses);
+//   // if (responses.some(res => res.status === 'rejected')) {
+//   //   throw new Error('One or more parts of the document failed to translate.');
+//   // }
 
-  // let sourceLanguageResponse = '';
+//   // let sourceLanguageResponse = '';
 
-  // const translateTextResponse = responses.reduce((docs, response) => {
-  //   if (response.status === 'fulfilled') {
-  //     if (bedrockEnabled) {
-  //       sourceLanguageResponse = SourceLanguageCode;
-  //       return docs.concat([response.value ?? '']);
-  //     } else {
-  //       sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
-  //       return docs.concat([response.value.TranslatedText ?? '']);
-  //     }
-  //   }
-  //   return docs;
-  // }, [] as Documents);
-  // // console.log("Docs after the concatination", translateTextResponse);
-  // return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
-}
+//   // const translateTextResponse = responses.reduce((docs, response) => {
+//   //   if (response.status === 'fulfilled') {
+//   //     if (bedrockEnabled) {
+//   //       sourceLanguageResponse = SourceLanguageCode;
+//   //       return docs.concat([response.value ?? '']);
+//   //     } else {
+//   //       sourceLanguageResponse = response.value.SourceLanguageCode ?? '';
+//   //       return docs.concat([response.value.TranslatedText ?? '']);
+//   //     }
+//   //   }
+//   //   return docs;
+//   // }, [] as Documents);
+//   // // console.log("Docs after the concatination", translateTextResponse);
+//   // return { translatedText: translateTextResponse, sourceLanguage: sourceLanguageResponse };
+// }
 
 /**
  * Maps over a set of documents to be translated and waits for all of the requests to settle.
@@ -243,14 +242,13 @@ export async function translateMany(
 // }
 
 /// TODOD clean up this function with proper error handling and retry
-async function sendDocumentsToTranslate_V2(
+export async function sendDocumentsToTranslate_V2(
   client: TranslateClient | BedrockRuntimeClient,
   bedrockEnabled: boolean,
   SourceLanguageCode: string,
   TargetLanguageCode: string,
   pageMap: PageMap_V2[]
-) {
-  // console.log('Docs are: ', docs);
+): Promise<void> {
   // const concurrentLimit = pLimit(CONCURRENCY_LIMIT);
   if (bedrockEnabled) {
     // return await Promise.allSettled(
@@ -277,8 +275,6 @@ async function sendDocumentsToTranslate_V2(
     //   })
     // );
   } else {
-    const all_responses: PageMap_V2[] = [];
-
     await Promise.all(
       pageMap.map(async doc => {
         const command = new TranslateTextCommand({
@@ -287,17 +283,27 @@ async function sendDocumentsToTranslate_V2(
           TargetLanguageCode,
         });
         const response = await (client as TranslateClient).send(command);
-        all_responses.push({
+
+        const url = window.location.href;
+        const cache: CacheLangs_V2 = lockr.get(url, {});
+        const langPair = `${SourceLanguageCode}-${TargetLanguageCode}`;
+        const cacheObject = cache[langPair] ?? [];
+
+        const translatedObject = {
           id: doc.id,
           originalText: doc.originalText,
           translatedText: response.TranslatedText,
+        };
+        const translatedCache = cacheObject.map(item => {
+          if (item.id == doc.id) return translatedObject;
+          else return item;
         });
+
+        cache[langPair] = translatedCache;
+        lockr.set(url, cache);
       })
     );
-
-    return all_responses;
   }
-  return [];
 }
 
 /**
@@ -360,6 +366,11 @@ export function getCache(url: string, source: string, target: string): CacheText
   return cache?.[`${source}-${target}`] ?? null;
 }
 
+export function getCache_V2(url: string, source: string, target: string): PageMap_V2[] {
+  const cache: CacheLangs_V2 | null = lockr.get(url, null);
+  return cache?.[`${source}-${target}`] ?? [];
+}
+
 /**
  * Accepts a page map of the source language and a page map of the translated language and returns
  * a TextMap that matches the source language text to the translated language text. This is used for
@@ -389,6 +400,57 @@ export function cacheTranslation(
   const langPairCache = cache[langPair] ?? {};
   const updatedLangPairCache = { ...langPairCache, ...textMap };
   cache[langPair] = updatedLangPairCache;
+  lockr.set(url, cache);
+}
+
+export function addOrRemoveNewObjectsFromTheCache(
+  url: string,
+  source: string,
+  target: string,
+  items: PageMap_V2[]
+) {
+  const cache: CacheLangs_V2 = lockr.get(url, {});
+  const langPair = `${source}-${target}`;
+  const objectsInCache = cache[langPair] ?? [];
+
+  // Create a map from pagemap for quick lookup
+  const pagemapMap = new Map<string, PageMap_V2>();
+  items.forEach(item => {
+    pagemapMap.set(item.id, item);
+  });
+
+  // Create the result array
+  const updatedCache: PageMap_V2[] = [];
+
+  // Iterate through cache
+  objectsInCache.forEach(cacheItem => {
+    const pagemapItem = pagemapMap.get(cacheItem.id);
+    if (pagemapItem && cacheItem.originalText === pagemapItem.originalText) {
+      // If id and text match, keep the item from cache
+      updatedCache.push(cacheItem);
+      // Remove the item from pagemap map to avoid reprocessing
+      pagemapMap.delete(cacheItem.id);
+    }
+  });
+
+  // Add remaining items from pagemap
+  pagemapMap.forEach(item => {
+    updatedCache.push(item);
+  });
+
+  cache[langPair] = updatedCache;
+  lockr.set(url, cache);
+}
+
+export function cacheObjects(
+  url: string,
+  source: string,
+  target: string,
+  pageMap: PageMap_V2[]
+): void {
+  const cache: CacheLangs_V2 = lockr.get(url, {});
+  const langPair = `${source}-${target}`;
+  cache[langPair] = pageMap;
   lockr.set(url, cache);
 }
 

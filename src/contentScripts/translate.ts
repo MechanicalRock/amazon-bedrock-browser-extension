@@ -16,7 +16,6 @@ limitations under the License.
 
 import {
   // CacheTextMap,
-  NodeMap,
   // PageMap,
   PageMap_V2,
   TranslateCommandData,
@@ -24,19 +23,21 @@ import {
 import {
   // crawl,
   crawl_V2,
-  getCache,
   // writePages,
   // bindPages,
   // pageIsValid,
-  translateMany,
   // breakDocuments,
   // makeCacheTextMap,
-  // cacheTranslation,
   swapText,
+  getCache_V2,
+  addOrRemoveNewObjectsFromTheCache,
+  sendDocumentsToTranslate_V2,
   // splitPage,
   // sanitizePage,
   // createPageMap
 } from './functions';
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
+import { TranslateClient } from '@aws-sdk/client-translate';
 
 /**
  * Kicks off logic for translating the webpage from the provided starting element by
@@ -52,14 +53,35 @@ export async function startTranslation(
     const { pageMap, nodeMap } = crawl_V2(startingEl);
     console.log('crawl pageMap is: ', pageMap);
     // Check if a cached translation exists for the current page
-    const cache = getCache(window.location.href, data.langs.source, data.langs.target);
-    console.log('Content in the cache is:', cache);
+    if (pageMap.length > 0) {
+      addOrRemoveNewObjectsFromTheCache(
+        window.location.href,
+        data.langs.source,
+        data.langs.target,
+        pageMap
+      );
 
-    // if (cache) {
-    //   translateFromCache(pageMap, nodeMap, cache);
-    // } else {
-    await translateFromApi_V2(data, nodeMap, pageMap);
-    // }
+      const cache = getCache_V2(window.location.href, data.langs.source, data.langs.target);
+      console.log('Content in the cache is:', cache);
+
+      const itemsToBeTranslated = cache.filter(item => !item.translatedText);
+
+      console.log('number of items to be translated:', itemsToBeTranslated.length);
+      if (itemsToBeTranslated.length > 0) {
+        await translateFromApi_V2(data, itemsToBeTranslated);
+      }
+      const cacheObjectsAfterTranslation = getCache_V2(
+        window.location.href,
+        data.langs.source,
+        data.langs.target
+      );
+      console.log('cache objects after translation: ', cacheObjectsAfterTranslation);
+
+      cacheObjectsAfterTranslation.forEach(item =>
+        item.translatedText ? swapText(nodeMap, item.id, item.translatedText) : undefined
+      );
+    }
+    // SHOUDL LOAD DATA FROM CACHE
   } else {
     throw new Error('Amazon Translate Error: The top level tag does not exist on the document.');
   }
@@ -74,15 +96,19 @@ export async function startTranslation(
 
 async function translateFromApi_V2(
   { creds, langs, bedrockEnabled }: TranslateCommandData,
-  nodeMap: NodeMap,
   pageMap: PageMap_V2[]
 ) {
-  // console.log("pagemap is:" , pageMap);
-  const tDocs = await translateMany(creds, bedrockEnabled, langs.source, langs.target, pageMap);
+  // await translateMany(creds, bedrockEnabled, langs.source, langs.target, pageMap);
+  // TODO CREATE THE CLIENT ONLY ONCE
+  console.debug('Using Bedrock:', bedrockEnabled);
+  const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
+
+  await sendDocumentsToTranslate_V2(client, bedrockEnabled, langs.source, langs.target, pageMap);
+
   // Apply the translated documents to the DOM
-  tDocs.forEach(doc =>
-    doc.translatedText ? swapText(nodeMap, doc.id, doc.translatedText) : undefined
-  );
+  // tDocs.forEach(doc =>
+  //   doc.translatedText ? swapText(nodeMap, doc.id, doc.translatedText) : undefined
+  // );
   // console.log("nodemap after is: ", nodeMap);
 }
 
