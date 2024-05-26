@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { PageMap_V2, TranslateCommandData } from '~/_contracts';
+import { PageMap, TranslateCommandData } from '~/_contracts';
 import {
   crawl,
   swapText,
@@ -79,7 +79,7 @@ export async function startTranslation(
  */
 async function translateFromApi(
   { creds, langs, bedrockEnabled }: TranslateCommandData,
-  pageMap: PageMap_V2[]
+  pageMap: PageMap[]
 ) {
   // TODO CREATE THE CLIENT ONLY ONCE to help with performance
 

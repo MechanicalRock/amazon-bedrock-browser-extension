@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export interface TranslateData {
-  pageMap: PageMap_V2[];
+  pageMap: PageMap[];
   nodeMap: NodeMap;
 }
 
@@ -18,7 +18,7 @@ export interface NodeMap {
   [key: string]: Node;
 }
 
-export interface PageMap_V2 {
+export interface PageMap {
   id: string;
   originalText: string;
   translatedText: string | null;

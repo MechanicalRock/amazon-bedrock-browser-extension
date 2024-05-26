@@ -1,7 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { PageMap_V2 } from './translate';
+import { PageMap } from './translate';
 
 /**
  * A key/value map of language pairs with text maps. The key is the
@@ -9,7 +9,7 @@ import { PageMap_V2 } from './translate';
  */
 
 export interface CacheLangs {
-  [langPair: string]: PageMap_V2[];
+  [langPair: string]: PageMap[];
 }
 /**
  * Maps source text (ie. "hello world!") to translated text (ie. "¡Hola mundo!").
