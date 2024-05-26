@@ -7,11 +7,8 @@ import { PageMap_V2 } from './translate';
  * A key/value map of language pairs with text maps. The key is the
  * format of `sourceLang-targetLang` and the value is the CacheTextMap.
  */
-export interface CacheLangs {
-  [langPair: string]: CacheTextMap;
-}
 
-export interface CacheLangs_V2 {
+export interface CacheLangs {
   [langPair: string]: PageMap_V2[];
 }
 /**
