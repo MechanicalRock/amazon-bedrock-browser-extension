@@ -14,22 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { CacheTextMap, NodeMap, PageMap, TranslateCommandData } from '~/_contracts';
+import { PageMap, TranslateCommandData } from '~/_contracts';
 import {
   crawl,
-  getCache,
-  writePages,
-  bindPages,
-  pageIsValid,
-  translateMany,
-  breakDocuments,
-  makeCacheTextMap,
-  cacheTranslation,
   swapText,
-  splitPage,
-  sanitizePage,
-  createPageMap,
+  getCache,
+  addOrRemoveNewObjectsFromTheCache,
+  sendDocumentsToTranslate_V2,
 } from './functions';
+import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
+import { TranslateClient } from '@aws-sdk/client-translate';
 
 /**
  * Kicks off logic for translating the webpage from the provided starting element by
@@ -43,24 +37,40 @@ export async function startTranslation(
   if (startingEl) {
     // Crawl the DOM from the starting element and get the text pages and node map
     const { pageMap, nodeMap } = crawl(startingEl);
-    // Check if a cached translation exists for the current page
-    const cache = getCache(window.location.href, data.langs.source, data.langs.target);
+    console.log('crawl pageMap is: ', pageMap);
 
-    if (cache) {
-      translateFromCache(pageMap, nodeMap, cache);
-    } else {
-      await translateFromApi(data, nodeMap, pageMap);
+    // Check if a cached translation exists for the current page
+    if (pageMap.length > 0) {
+      addOrRemoveNewObjectsFromTheCache(
+        window.location.href,
+        data.langs.source,
+        data.langs.target,
+        pageMap
+      );
+
+      const cache = getCache(window.location.href, data.langs.source, data.langs.target);
+      console.log('Content in the cache is:', cache);
+
+      const itemsToBeTranslated = cache.filter(item => !item.translatedText);
+
+      console.log('number of items to be translated:', itemsToBeTranslated.length);
+      if (itemsToBeTranslated.length > 0) {
+        await translateFromApi(data, itemsToBeTranslated);
+      }
+
+      const cacheObjectsAfterTranslation = getCache(
+        window.location.href,
+        data.langs.source,
+        data.langs.target
+      );
+
+      cacheObjectsAfterTranslation.forEach(item =>
+        item.translatedText ? swapText(nodeMap, item.id, item.translatedText) : undefined
+      );
     }
   } else {
     throw new Error('Amazon Translate Error: The top level tag does not exist on the document.');
   }
-}
-
-/**
- * Logic flow to translate the crawled webpage into the target language from the local cache.
- */
-function translateFromCache(pageMap: PageMap, nodeMap: NodeMap, cache: CacheTextMap): void {
-  Object.entries(pageMap).forEach(([id, srcText]) => swapText(nodeMap, id, cache[srcText]));
 }
 
 /**
@@ -69,41 +79,21 @@ function translateFromCache(pageMap: PageMap, nodeMap: NodeMap, cache: CacheText
  */
 async function translateFromApi(
   { creds, langs, bedrockEnabled }: TranslateCommandData,
-  nodeMap: NodeMap,
-  pageMap: PageMap
+  pageMap: PageMap[]
 ) {
-  // If the page has not been previously translated and cached, get new translation and apply it
+  // TODO CREATE THE CLIENT ONLY ONCE to help with performance
 
-  // Create translatable pages from the page map.
-  const writtenPages = writePages(pageMap);
+  console.debug('Using Bedrock:', bedrockEnabled);
+  const client = bedrockEnabled ? new BedrockRuntimeClient(creds) : new TranslateClient(creds);
 
-  // Bind the pages into documents (chunks) that can be sent to Amazon Translate
-  const docs = bindPages(writtenPages);
+  await sendDocumentsToTranslate_V2(client, bedrockEnabled, langs.source, langs.target, pageMap);
 
-  // Translate the documents
-  const tDocs = await translateMany(creds, bedrockEnabled, langs.source, langs.target, docs);
+  // TODO: store the cache in reverse order too
 
-  // Break the translated documents back into pages
-  const tPagesRaw = breakDocuments(tDocs.translatedText);
-  // Sanitize the pages returned from Amazon Translate
-  const tPagesSanitized = tPagesRaw.map(page => sanitizePage(page));
-  // Break the pages into tuples of the node ID and the translated text
-  const translatedPageMap = createPageMap(tPagesSanitized);
-  // Make a cache text map for the selected language pair
-  const textMap = makeCacheTextMap(pageMap, translatedPageMap);
-
-  // Cache the translated text map
-  cacheTranslation(window.location.href, tDocs.sourceLanguage, langs.target, textMap);
-
-  // Apply the translated documents to the DOM
-  tPagesSanitized.forEach(page =>
-    pageIsValid(page) ? swapText(nodeMap, ...splitPage(page)) : undefined
-  );
-
-  /**
-   * Caching the text map on the reverse order to avoid an extra api call.
-   * If the initial request is from English -> German it will cached along with German -> English
-   */
-  const textMapReverse = makeCacheTextMap(translatedPageMap, pageMap);
-  cacheTranslation(window.location.href, langs.target, tDocs.sourceLanguage, textMapReverse);
+  //   /**
+  //    * Caching the text map on the reverse order to avoid an extra api call.
+  //    * If the initial request is from English -> German it will cached along with German -> English
+  //    */
+  //   const textMapReverse = makeCacheTextMap(translatedPageMap, pageMap);
+  //   cacheTranslation(window.location.href, langs.target, tDocs.sourceLanguage, textMapReverse);
 }
