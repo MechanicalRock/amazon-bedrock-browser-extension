@@ -10,8 +10,9 @@ import {
 // import { BedrockTextCommand } from './bedrock';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { lockr } from '../modules';
-import { NodeMap, TranslateData, PageMap, CacheLangs } from '../_contracts';
+import { NodeMap, TranslateData, PageMap, CacheLangs, CachItems } from '../_contracts';
 import { IGNORED_NODES } from '../constants';
+import { Buffer } from 'buffer';
 // import pLimit from 'p-limit';
 
 /**
@@ -109,20 +110,15 @@ export async function sendDocumentsToTranslate_V2(
         const url = window.location.href;
         const cache: CacheLangs = lockr.get(url, {});
         const langPair = `${SourceLanguageCode}-${TargetLanguageCode}`;
-        const cacheObject = cache[langPair] ?? [];
+        const cacheObject: CachItems = cache[langPair] ?? {};
 
-        const translatedObject: PageMap = {
-          id: doc.id,
+        const base64String = Buffer.from(doc.originalText).toString('base64');
+        cacheObject[base64String] = {
           originalText: doc.originalText,
           translatedText: response.TranslatedText || null,
         };
 
-        const translatedCache = cacheObject.map(item => {
-          if (item.id == doc.id) return translatedObject;
-          else return item;
-        });
-
-        cache[langPair] = translatedCache;
+        cache[langPair] = cacheObject;
         lockr.set(url, cache);
 
         // if (responses.some(res => res.status === 'rejected')) {
@@ -158,63 +154,30 @@ export async function sendDocumentsToTranslate_V2(
 //   );
 // }
 
-/**
- * Attempts to retrieve the cached text map from localStorage.
- */
-export function getCache(url: string, source: string, target: string): PageMap[] {
-  const cache: CacheLangs | null = lockr.get(url, null);
-  return cache?.[`${source}-${target}`] ?? [];
-}
-
-export function addOrRemoveNewObjectsFromTheCache(
+export function updatePageMapWithItemsFromCache(
   url: string,
   source: string,
   target: string,
   items: PageMap[]
-) {
+): PageMap[] {
   const cache: CacheLangs = lockr.get(url, {});
   const langPair = `${source}-${target}`;
-  const objectsInCache = cache[langPair] ?? [];
+  const objectsInCache: CachItems = cache[langPair] ?? {};
 
-  // Create a map from pagemap for quick lookup
-  const pagemapMap = new Map<string, PageMap>();
-  items.forEach(item => {
-    pagemapMap.set(item.id, item);
-  });
-
-  // Create the result array
-  const updatedCache: PageMap[] = [];
-
-  // Iterate through cache
-  objectsInCache.forEach(cacheItem => {
-    const pagemapItem = pagemapMap.get(cacheItem.id);
-    if (pagemapItem && cacheItem.originalText === pagemapItem.originalText) {
-      // If id and text match, keep the item from cache
-      updatedCache.push(cacheItem);
-      // Remove the item from pagemap map to avoid reprocessing
-      pagemapMap.delete(cacheItem.id);
+  const updatedPageMap: PageMap[] = items.map(item => {
+    const base64String = Buffer.from(item.originalText).toString('base64');
+    if (objectsInCache[base64String] && objectsInCache[base64String].translatedText) {
+      return {
+        id: item.id,
+        originalText: item.originalText,
+        translatedText: objectsInCache[base64String].translatedText,
+      };
+    } else {
+      return item;
     }
   });
 
-  // Add remaining items from pagemap
-  pagemapMap.forEach(item => {
-    updatedCache.push(item);
-  });
-
-  cache[langPair] = updatedCache;
-  lockr.set(url, cache);
-}
-
-export function cacheObjects(
-  url: string,
-  source: string,
-  target: string,
-  pageMap: PageMap[]
-): void {
-  const cache: CacheLangs = lockr.get(url, {});
-  const langPair = `${source}-${target}`;
-  cache[langPair] = pageMap;
-  lockr.set(url, cache);
+  return updatedPageMap;
 }
 
 /**

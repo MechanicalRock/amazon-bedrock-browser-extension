@@ -18,9 +18,8 @@ import { PageMap, TranslateCommandData } from '~/_contracts';
 import {
   crawl,
   swapText,
-  getCache,
-  addOrRemoveNewObjectsFromTheCache,
   sendDocumentsToTranslate_V2,
+  updatePageMapWithItemsFromCache,
 } from './functions';
 import { BedrockRuntimeClient } from '@aws-sdk/client-bedrock-runtime';
 import { TranslateClient } from '@aws-sdk/client-translate';
@@ -41,30 +40,28 @@ export async function startTranslation(
 
     // Check if a cached translation exists for the current page
     if (pageMap.length > 0) {
-      addOrRemoveNewObjectsFromTheCache(
+      const updatedPageMap = updatePageMapWithItemsFromCache(
         window.location.href,
         data.langs.source,
         data.langs.target,
         pageMap
       );
 
-      const cache = getCache(window.location.href, data.langs.source, data.langs.target);
-      console.log('Content in the cache is:', cache);
-
-      const itemsToBeTranslated = cache.filter(item => !item.translatedText);
+      const itemsToBeTranslated = updatedPageMap.filter(item => !item.translatedText);
 
       console.log('number of items to be translated:', itemsToBeTranslated.length);
       if (itemsToBeTranslated.length > 0) {
         await translateFromApi(data, itemsToBeTranslated);
       }
 
-      const cacheObjectsAfterTranslation = getCache(
+      const updatedPageMapAfterTranslation = updatePageMapWithItemsFromCache(
         window.location.href,
         data.langs.source,
-        data.langs.target
+        data.langs.target,
+        pageMap
       );
 
-      cacheObjectsAfterTranslation.forEach(item =>
+      updatedPageMapAfterTranslation.forEach(item =>
         item.translatedText ? swapText(nodeMap, item.id, item.translatedText) : undefined
       );
     }
